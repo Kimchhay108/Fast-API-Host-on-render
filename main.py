@@ -19,16 +19,17 @@ class ImageURLs(BaseModel):
     side: str
 
 class Product(BaseModel):
+    id: int | None = None          # Include ID in response
     category: str
     name: str
-    color: str
+    colors: List[str]
     variants: List[Variant]
     img: ImageURLs
 
 # -----------------------------
 # In-memory storage
 # -----------------------------
-products = []
+products: List[Product] = []
 
 # -----------------------------
 # Upload image to Supabase
@@ -40,14 +41,14 @@ async def upload_image(file: UploadFile = File(...)):
         filename = f"{uuid.uuid4()}-{file.filename}"
 
         supabase.storage.from_("products").upload(
-            filename,
-            content,
-            {"content-type": file.content_type}
+            path=filename,
+            file=content,
+            file_options={"content-type": file.content_type}
         )
 
         public_url = supabase.storage.from_("products").get_public_url(filename)
 
-        return {"url": public_url}
+        return {"filename": filename, "url": public_url}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -57,11 +58,9 @@ async def upload_image(file: UploadFile = File(...)):
 # -----------------------------
 @app.post("/products", response_model=Product)
 def create_product(product: Product):
-    product_dict = product.dict()
-    product_id = len(products) + 1
-    product_dict["id"] = product_id
-    products.append(product_dict)
-    return product_dict
+    product.id = len(products) + 1
+    products.append(product)
+    return product
 
 # -----------------------------
 # Get all products
@@ -76,7 +75,7 @@ def get_products():
 @app.get("/products/{product_id}", response_model=Product)
 def get_product(product_id: int = Path(..., description="ID of the product to retrieve")):
     for product in products:
-        if product["id"] == product_id:
+        if product.id == product_id:
             return product
     raise HTTPException(status_code=404, detail="Product not found")
 
@@ -86,11 +85,10 @@ def get_product(product_id: int = Path(..., description="ID of the product to re
 @app.put("/products/{product_id}", response_model=Product)
 def update_product(product_id: int, product: Product):
     for i, p in enumerate(products):
-        if p["id"] == product_id:
-            updated_product = product.dict()
-            updated_product["id"] = product_id
-            products[i] = updated_product
-            return updated_product
+        if p.id == product_id:
+            product.id = product_id
+            products[i] = product
+            return product
     raise HTTPException(status_code=404, detail="Product not found")
 
 # -----------------------------
@@ -99,7 +97,7 @@ def update_product(product_id: int, product: Product):
 @app.delete("/products/{product_id}")
 def delete_product(product_id: int):
     for i, p in enumerate(products):
-        if p["id"] == product_id:
+        if p.id == product_id:
             products.pop(i)
             return {"detail": f"Product {product_id} deleted successfully"}
     raise HTTPException(status_code=404, detail="Product not found")
