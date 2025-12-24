@@ -19,7 +19,7 @@ class ImageURLs(BaseModel):
     side: str
 
 class Product(BaseModel):
-    id: int | None = None          # Include ID in response
+    id: int | None = None
     category: str
     name: str
     colors: List[str]
@@ -37,15 +37,18 @@ products: List[Product] = []
 @app.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
     try:
+        # Read file content
         content = await file.read()
         filename = f"{uuid.uuid4()}-{file.filename}"
 
+        # Upload to Supabase Storage
         supabase.storage.from_("products").upload(
             path=filename,
             file=content,
             file_options={"content-type": file.content_type}
         )
 
+        # Get public URL
         public_url = supabase.storage.from_("products").get_public_url(filename)
 
         return {"filename": filename, "url": public_url}
